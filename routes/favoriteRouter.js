@@ -5,8 +5,7 @@ const cors = require("./cors");
 
 const favoriteRouter = express.Router();
 
-favoriteRouter
-    .route("/")
+favoriteRouter.route("/")
     .options(cors.corsWithOptions, (req, res) => res.sendStatus(200))
     .get(cors.cors, authenticate.verifyUser, (req, res, next) => {
         Favorite.find({ user: req.user._id })
@@ -41,14 +40,57 @@ favoriteRouter
             })
             .catch((err) => next(err));
     })
-    .put(cors.corsWithOptions, authenticate.verifyUser)
-    .delete(cors.corsWithOptions, authenticate.verifyUser);
+    .put(cors.corsWithOptions, authenticate.verifyUser, (req, res) => {
+        res.statusCode = 403;
+        res.end('PUT operation not supported on /favorites');
+    })
+    .delete(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
+        Favorite.findOneAndDelete({user: req.user._id})
+        .then((favorite) => {
+            if (favorite) {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favorite)
+            } else {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "text/plain");
+                res.end("You do not have any favorites to delete.")
+            }
+        })
+        .catch((err) => next(err));
+    });
 
-favoriteRouter
-    .route("/:campsiteId")
+favoriteRouter.route("/:campsiteId")
     .options(cors.corsWithOptions, (req, res) => res.sendStatus(200))
     .get(cors.cors)
-    .post(cors.corsWithOptions, authenticate.verifyUser)
+    .post(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
+        Favorite.findOne({user: req.user._id})
+        .then((favorite) => {
+            if (favorite) {
+                //I want to check if my favorites array has a campsite matching the route params
+                if (!favorite.campsites.includes(req.params.campsiteId)) {
+                //If does not exist, I want to add it
+                    favorite.campsites.push(req.params.campsiteId)
+                    res.statusCode = 200;
+                    res.setHeader("Content-Type", "application/json");
+                    res.json(favorite)
+                } else {
+                //If campsite does exist, I want to respond with a message
+                    res.statusCode = 200;
+                    res.setHeader("Content-Type", "text/plain");
+                    res.end("That campsite is already in the list of favorites!" )
+                }
+            } else {
+                //If favorite list does not exist, I want to create it 
+                Favorite.create( {user: req.user._id, campsites: req.params.campsiteId} )
+                .then(favorite => {
+                    res.statusCode = 200;
+                    res.setHeader("Content-Type", "application/json");
+                    res.json(favorite)
+                })
+            }
+        })
+    })
     .put(cors.corsWithOptions, authenticate.verifyUser)
     .delete(cors.corsWithOptions, authenticate.verifyUser);
 
