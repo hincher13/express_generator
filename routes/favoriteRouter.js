@@ -62,7 +62,10 @@ favoriteRouter.route("/")
 
 favoriteRouter.route("/:campsiteId")
     .options(cors.corsWithOptions, (req, res) => res.sendStatus(200))
-    .get(cors.cors)
+    .get(cors.corsWithOptions, authenticate.verifyUser, (req, res) => {
+        res.statusCode = 403;
+        res.end('GET operation not supported on /favorites/:campsiteId');
+    })
     .post(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
         Favorite.findOne({user: req.user._id})
         .then((favorite) => {
@@ -71,6 +74,7 @@ favoriteRouter.route("/:campsiteId")
                 if (!favorite.campsites.includes(req.params.campsiteId)) {
                 //If does not exist, I want to add it
                     favorite.campsites.push(req.params.campsiteId)
+                    favorite.save();
                     res.statusCode = 200;
                     res.setHeader("Content-Type", "application/json");
                     res.json(favorite)
@@ -91,7 +95,31 @@ favoriteRouter.route("/:campsiteId")
             }
         })
     })
-    .put(cors.corsWithOptions, authenticate.verifyUser)
-    .delete(cors.corsWithOptions, authenticate.verifyUser);
+    .put(cors.corsWithOptions, authenticate.verifyUser, (req, res) => {
+        res.statusCode = 403;
+        res.end('PUT operation not supported on /favorites/:campsiteId');
+    })
+    .delete(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
+        Favorite.findOne({user: req.user._id})
+        .then((favorite) => {
+            if (favorite) {
+                let campsiteIndexToRemove = favorite.campsites.indexOf(req.params.campsiteId)
+
+                if (campsiteIndexToRemove > -1) {
+                    favorite.campsites.splice(campsiteIndexToRemove, 1);
+                    favorite.save();
+                }
+
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favorite)
+                
+            } else {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "text/plain");
+                res.end("There are no favorites to delete!" )
+            }
+        })
+    });
 
 module.exports = favoriteRouter;
